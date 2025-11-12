@@ -1,771 +1,119 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pet Defense v2 — Emoji Edition (Placement + Shop + Unlock)</title>
+<meta charset="UTF-8">
+<title>Pet Defense v2.1</title>
 <style>
-  :root{
-    --bg:#071022; --panel:#0b1624; --accent:#34d399; --muted:#97a6b3;
-    --rarity-common:#9ca3af; --rarity-uncommon:#34d399; --rarity-rare:#ef4444; --rarity-epic:#7c3aed; --rarity-legend:#f59e0b;
-  }
-  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#071022,#05121a);color:#e6eef6}
-  .wrap{display:flex;gap:12px;max-width:1200px;margin:12px auto;padding:12px;}
-  .game{background:linear-gradient(180deg,#081528,#06101a);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,.6);position:relative;}
-  canvas{display:block;background:#0b2030;border-radius:8px}
-  .sidebar{width:320px;padding:12px;background:linear-gradient(180deg,#071021,#06121a);border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
-  h1{margin:0 0 8px 0;font-size:18px}
-  .hud{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-  .stat{background:rgba(255,255,255,0.03);padding:8px;border-radius:8px;min-width:80px;text-align:center}
-  button{appearance:none;background:var(--accent);border:none;color:#042018;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer}
-  .muted{color:var(--muted);font-size:13px;margin-top:8px}
-  .controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .small{padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.03);color:#dff3ea}
-  .msg{margin-top:10px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.15)}
-  .bottom-right-btn{position:fixed;right:18px;bottom:18px;z-index:1200}
-  /* Shop modal */
-  .modal-backdrop{position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1300}
-  .modal{width:720px;max-width:95%;background:linear-gradient(180deg,#071b25,#041019);padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 20px 60px rgba(0,0,0,0.6);color:#ecfdf5}
-  .shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:360px;overflow:auto;padding:6px}
-  .pet-card{background:rgba(255,255,255,0.03);padding:8px;border-radius:10px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:transform .1s}
-  .pet-card:hover{transform:translateY(-4px)}
-  .pet-emoji{font-size:28px}
-  .pet-name{font-weight:800}
-  .pet-meta{font-size:12px;color:var(--muted)}
-  .rarity-common{border:2px solid var(--rarity-common)}
-  .rarity-uncommon{border:2px solid var(--rarity-uncommon)}
-  .rarity-rare{border:2px solid var(--rarity-rare)}
-  .rarity-epic{border:2px solid var(--rarity-epic)}
-  .rarity-legend{border:2px solid var(--rarity-legend)}
-  /* details panel */
-  .details{display:flex;gap:12px;padding:8px;margin-top:10px;border-radius:8px;background:rgba(255,255,255,0.02)}
-  .detail-stats{font-size:13px;color:#e9f8f2}
-  .placement-hint{color:var(--muted);font-size:13px;margin-top:8px}
-  .summary{margin-top:10px;color:var(--muted)}
-  /* Unlock animation */
-  .unlock-overlay{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:1500}
-  .unlock-box{background:linear-gradient(90deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03));padding:18px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);display:flex;align-items:center;gap:12px;backdrop-filter:blur(4px)}
-  .sparkle{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;filter:blur(1px);opacity:0.9}
-  .range-circle{position:absolute;border-radius:50%;pointer-events:none}
+  body { background:#222; color:white; font-family:sans-serif; margin:0; }
+  canvas { background:#333; display:block; margin:0 auto; }
+  #shopButton { position:fixed; bottom:10px; right:10px; padding:10px; background:#555; border:none; color:white; cursor:pointer; }
+  #shopPopup { display:none; position:fixed; bottom:50px; right:10px; width:250px; background:#222; border:2px solid #888; padding:10px; max-height:400px; overflow:auto; }
+  .petBox { border:2px solid grey; margin:5px; padding:5px; cursor:pointer; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="game" id="gameWrap">
-    <canvas id="gameCanvas" width="900" height="540"></canvas>
-    <!-- placement range circle (DOM) -->
-    <div id="rangeCircle" class="range-circle" style="display:none;z-index:500;"></div>
-  </div>
-
-  <div class="sidebar">
-    <h1>Pet Defense v2 🐾</h1>
-    <div class="hud">
-      <div class="stat">Coins<br><strong id="coins">50</strong></div>
-      <div class="stat">Lives<br><strong id="lives">12</strong></div>
-      <div class="stat">Wave<br><strong id="wave">0 / 12</strong></div>
-    </div>
-
-    <div class="muted">Shop & Placement</div>
-    <div class="controls">
-      <button id="nextWaveBtn">Start Next Wave</button>
-      <button id="skipBtn" class="small">End Wave (skip)</button>
-      <button id="restartBtn" class="small">Restart</button>
-    </div>
-
-    <div class="msg" id="message">Tip: Buy pets between waves. Click the Shop (bottom-right) to open. When buying, click the map to place your pet and preview its range.</div>
-
-    <div class="summary" id="summaryBox"></div>
-  </div>
-</div>
-
-<!-- Shop Button bottom-right -->
-<div class="bottom-right-btn">
-  <button id="openShopBtn">Shop 🛍️</button>
-</div>
-
-<!-- Shop modal placeholder -->
-<div id="shopModalContainer" style="display:none;"></div>
-
-<!-- Unlock overlay -->
-<div id="unlockOverlay" style="display:none;"></div>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<button id="shopButton">Shop 🛒</button>
+<div id="shopPopup"></div>
 
 <script>
-/* Pet Defense v2+ — single file
-   Features:
-   - faster pets (starters boosted big)
-   - popup shop (bottom-right)
-   - placement mode with range preview
-   - unlock animation with sparkles
-   - hide locked pets, show summary counts
-   - pets idle until enemy in range; abilities have visuals
-*/
+// ========== GAME STATE ==========
+const game = {
+    inWave:false,
+    wave:1,
+    coins:100,
+    pets: [],
+    enemies: [],
+    unlockedPets:['cat','dog'],
+    petData:{
+        cat:{name:'Cat',rarity:'common',health:10,damage:2,speed:2,range:50,ability:'starter'},
+        dog:{name:'Dog',rarity:'common',health:15,damage:3,speed:2,range:60,ability:'starter'},
+        penguin:{name:'Penguin',rarity:'uncommon',health:12,damage:1,speed:2,range:60,ability:'❄️ Freeze'},
+        dragon:{name:'Dragon',rarity:'rare',health:20,damage:5,speed:1.5,range:80,ability:'🔥 Burn'},
+        tiger:{name:'Tiger',rarity:'rare',health:18,damage:4,speed:2,range:50,ability:'Bleed'},
+        fox:{name:'Fox',rarity:'uncommon',health:10,damage:2,speed:3,range:50,ability:'Fast'},
+        elephant:{name:'Elephant',rarity:'epic',health:30,damage:0,speed:1,range:50,ability:'💫 Shield'},
+        owl:{name:'Owl',rarity:'rare',health:12,damage:1,speed:2,range:80,ability:'Reveal'},
+        axolotl:{name:'Axolotl',rarity:'epic',health:15,damage:2,speed:2,range:50,ability:'❤️ Heal'},
+        eel:{name:'Electric Eel',rarity:'epic',health:14,damage:2,speed:2,range:60,ability:'⚡ Stun'},
+        bombardier:{name:'Bombardier Beetle',rarity:'rare',health:12,damage:3,speed:1.5,range:60,ability:'🔥 DOT'},
+        lyrebird:{name:'Lyrebird',rarity:'legendary',health:20,damage:4,speed:2,range:50,ability:'Mimic'},
+        pig:{name:'Pig',rarity:'uncommon',health:15,damage:1,speed:2,range:50,ability:'💰 Coins'},
+        tardigrade:{name:'Tardigrade',rarity:'legendary',health:50,damage:10,speed:1,range:70,ability:'Ultimate'},
+    },
+    rarityColors:{common:'grey',uncommon:'green',rare:'red',epic:'purple',legendary:'gold'}
+};
 
-/* -------------------------
-   Constants & Definitions
-   ------------------------- */
-
+// ========== CANVAS ==========
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const PATH = makePath();
-const GAME = {};
-const RARITY_COLORS = {
-  common: 'var(--rarity-common)',
-  uncommon: 'var(--rarity-uncommon)',
-  rare: 'var(--rarity-rare)',
-  epic: 'var(--rarity-epic)',
-  legendary: 'var(--rarity-legend)'
-};
-const RARITY_UNLOCK = {common:0.85, uncommon:0.5, rare:0.25, epic:0.10, legendary:0.03};
-const MAX_WAVES = 12;
 
-/* Pet definitions (same as before, but adjust start speeds: starters get large boost) */
-const PET_DEFS = [
-  {id:'cat', emoji:'🐱', name:'Cat', rarity:'common', cost:20, hp:60, dmg:8, speed:3.8, range:80, ability:null, desc:'Starter — very fast'},
-  {id:'dog', emoji:'🐶', name:'Dog', rarity:'common', cost:25, hp:80, dmg:10, speed:3.1, range:90, ability:null, desc:'Starter — balanced fast'},
-  {id:'penguin', emoji:'🐧', name:'Penguin', rarity:'uncommon', cost:60, hp:70, dmg:6, speed:2.1, range:100, ability:'freeze', desc:'Freezes enemies briefly (freeze time 0.9s)'},
-  {id:'dragon', emoji:'🐉', name:'Dragon', rarity:'rare', cost:120, hp:120, dmg:18, speed:1.4, range:140, ability:'burn', desc:'Burn DOT for 4s'},
-  {id:'tiger', emoji:'🐯', name:'Tiger', rarity:'rare', cost:110, hp:90, dmg:14, speed:2.6, range:70, ability:'bleed', desc:'Bleed DOT 3s'},
-  {id:'fox', emoji:'🦊', name:'Fox', rarity:'uncommon', cost:70, hp:60, dmg:9, speed:4.0, range:70, ability:'dash', desc:'Very fast; short dash attacks'},
-  {id:'elephant', emoji:'🐘', name:'Elephant', rarity:'epic', cost:150, hp:220, dmg:8, speed:0.9, range:110, ability:'shield', desc:'Shields nearby pets (25%)'},
-  {id:'owl', emoji:'🦉', name:'Owl', rarity:'rare', cost:130, hp:70, dmg:6, speed:1.9, range:130, ability:'reveal', desc:'Reveals invisible ghosts inside range'},
-  {id:'axolotl', emoji:'🦎', name:'Axolotl', rarity:'uncommon', cost:80, hp:110, dmg:6, speed:1.7, range:80, ability:'regen', desc:'Regenerates health faster'},
-  {id:'eel', emoji:'🐟', name:'Electric Eel', rarity:'epic', cost:160, hp:90, dmg:12, speed:1.6, range:100, ability:'stun', desc:'Shocks & stuns (0.9s)'},
-  {id:'beetle', emoji:'🪲', name:'Bombardier', rarity:'rare', cost:140, hp:80, dmg:6, speed:1.5, range:110, ability:'acid', desc:'Acid spray DOT area'},
-  {id:'lyrebird', emoji:'🪶', name:'Lyrebird', rarity:'epic', cost:170, hp:75, dmg:0, speed:2.7, range:60, ability:'mimic', desc:'Mimics enemy attack; close-range burst'},
-  {id:'pig', emoji:'🐷', name:'Pig', rarity:'uncommon', cost:90, hp:100, dmg:4, speed:1.8, range:80, ability:'bonusCoins', desc:'+20% coin drops'},
-  {id:'tardigrade', emoji:'🛸', name:'Tardigrade', rarity:'legendary', cost:999, hp:700, dmg:80, speed:1.4, range:130, ability:'tard', desc:'Legendary tank — huge stats'}
-];
+// ========== SHOP ==========
+const shopButton = document.getElementById('shopButton');
+const shopPopup = document.getElementById('shopPopup');
+shopButton.onclick = ()=>shopPopup.style.display = shopPopup.style.display==='none'?'block':'none';
 
-/* Enemy definitions */
-const ENEMY_DEFS = [
-  {id:'grunt', emoji:'👾', name:'Grunt', hp:30, speed:1.1, reward:6, unlocks:['dog','cat'], rarity:'common'},
-  {id:'ice', emoji:'❄️', name:'Ice Golem', hp:60, speed:0.8, reward:10, unlocks:['penguin'], rarity:'uncommon'},
-  {id:'fire', emoji:'🔥', name:'Flame', hp:80, speed:0.85, reward:12, unlocks:['dragon'], rarity:'rare'},
-  {id:'bleeder', emoji:'🩸', name:'Bleeder', hp:70, speed:1.2, reward:11, unlocks:['tiger'], rarity:'rare'},
-  {id:'ghost', emoji:'👻', name:'Ghost', hp:40, speed:1.3, reward:8, unlocks:['owl'], rarity:'uncommon', invisible:true},
-  {id:'fast', emoji:'⚡', name:'Runner', hp:40, speed:1.9, reward:9, unlocks:['fox'], rarity:'uncommon'},
-  {id:'tank', emoji:'🪨', name:'Tank', hp:220, speed:0.6, reward:22, unlocks:['elephant'], rarity:'epic'},
-  {id:'electric', emoji:'⚡🐟', name:'Shock', hp:100, speed:1.0, reward:15, unlocks:['eel'], rarity:'epic'},
-  {id:'acid', emoji:'🧪', name:'Spitter', hp:90, speed:0.9, reward:14, unlocks:['beetle'], rarity:'rare'},
-  {id:'mimic', emoji:'🪶👾', name:'Mimic', hp:85, speed:1.1, reward:14, unlocks:['lyrebird'], rarity:'epic'},
-  {id:'piggy', emoji:'🐷', name:'Coin Hog', hp:60, speed:1.0, reward:18, unlocks:['pig'], rarity:'rare'},
-  {id:'tardi', emoji:'🛸', name:'Ancient Tardi', hp:400, speed:0.7, reward:120, unlocks:['tardigrade'], rarity:'legendary'}
-];
-
-/* -------------------------
-   Utility Helpers
-   ------------------------- */
-const rand = (a,b)=>Math.random()*(b-a)+a;
-const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
-
-/* -------------------------
-   Path & Waves
-   ------------------------- */
-function makePath(){
-  return [
-    {x:-40,y:260},
-    {x:120,y:260},
-    {x:120,y:80},
-    {x:420,y:80},
-    {x:420,y:380},
-    {x:720,y:380},
-    {x:980,y:280}
-  ];
-}
-
-/* Generate waves (simple) */
-function generateWaves(n){
-  const waves = [];
-  for(let i=0;i<n;i++){
-    const arr=[];
-    const base = 6 + i*2;
-    for(let k=0;k<base;k++){
-      const r=Math.random();
-      if(i>6 && r<0.03) arr.push('tardi');
-      else if(r<0.08) arr.push('tank');
-      else if(r<0.18) arr.push('fire');
-      else if(r<0.28) arr.push('ice');
-      else if(r<0.38) arr.push('bleeder');
-      else if(r<0.48) arr.push('ghost');
-      else if(r<0.6) arr.push('fast');
-      else if(r<0.68) arr.push('acid');
-      else if(r<0.75) arr.push('piggy');
-      else arr.push('grunt');
+function updateShop(){
+    shopPopup.innerHTML = '';
+    let unlockedCount = game.unlockedPets.length;
+    let totalCount = Object.keys(game.petData).length;
+    let rarityCount = {common:0,uncommon:0,rare:0,epic:0,legendary:0};
+    for(let p of Object.keys(game.petData)){
+        let r = game.petData[p].rarity; rarityCount[r]++;
     }
-    waves.push(arr);
-  }
-  return waves;
-}
+    const status = document.createElement('div');
+    status.innerHTML = `Unlocked ${unlockedCount}/${totalCount} pets <br>
+    (Common:${rarityCount.common}, Uncommon:${rarityCount.uncommon}, Rare:${rarityCount.rare}, Epic:${rarityCount.epic}, Legendary:${rarityCount.legendary})`;
+    shopPopup.appendChild(status);
 
-/* -------------------------
-   Game Initialization
-   ------------------------- */
-function init(){
-  GAME.coins = 60;
-  GAME.lives = 12;
-  GAME.wave = 0;
-  GAME.enemies = [];
-  GAME.pets = [];
-  GAME.projectiles = [];
-  GAME.isSpawning = false;
-  GAME.betweenWaves = true;
-  GAME.unlocked = {};
-  PET_DEFS.forEach(p => GAME.unlocked[p.id] = (p.id==='cat' || p.id==='dog')); // starters
-  GAME.waveConfig = generateWaves(MAX_WAVES);
-  GAME.placement = null; // {def, id} when placing a bought pet
-  buildSummary();
-  updateUI();
-  if(window._anim) cancelAnimationFrame(window._anim);
-  window._anim = requestAnimationFrame(loop);
-}
-
-/* -------------------------
-   UI helpers (Shop, Summary)
-   ------------------------- */
-function buildSummary(){
-  const total = PET_DEFS.length;
-  const unlockedCount = PET_DEFS.filter(p=>GAME.unlocked[p.id]).length;
-  // breakdown by rarity
-  const breakdown = PET_DEFS.reduce((acc,p)=>{
-    acc[p.rarity] = (acc[p.rarity]||0) + (GAME.unlocked[p.id] ? 0 : 1);
-    return acc;
-  },{});
-  const s = document.getElementById('summaryBox');
-  s.innerHTML = `You have unlocked <strong>${unlockedCount}</strong> pets. <br>
-    <span style="color:var(--muted)">${total-unlockedCount} remaining — ${breakdown.common||0} common, ${breakdown.uncommon||0} uncommon, ${breakdown.rare||0} rare, ${breakdown.epic||0} epic, ${breakdown.legendary||0} legendary</span>`;
-}
-
-/* Update top HUD */
-function updateUI(){
-  document.getElementById('coins').innerText = Math.floor(GAME.coins);
-  document.getElementById('lives').innerText = GAME.lives;
-  document.getElementById('wave').innerText = `${GAME.wave} / ${MAX_WAVES}`;
-  buildSummary();
-}
-
-/* -------------------------
-   Shop modal & placement
-   ------------------------- */
-
-document.getElementById('openShopBtn').onclick = ()=> openShop();
-document.getElementById('nextWaveBtn').onclick = ()=> {
-  if(!GAME.betweenWaves) { flashMsg('Wave already in progress'); return; }
-  startNextWave();
-};
-document.getElementById('skipBtn').onclick = ()=> skipWave();
-document.getElementById('restartBtn').onclick = ()=> init();
-
-function openShop(){
-  const container = document.getElementById('shopModalContainer');
-  container.innerHTML = '';
-  const modal = document.createElement('div');
-  modal.className = 'modal-backdrop';
-  modal.innerHTML = `
-    <div class="modal" role="dialog">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="font-weight:900">Shop</div>
-        <div><button id="closeShopBtn" class="small">Close</button></div>
-      </div>
-      <div style="margin-top:8px;color:var(--muted)">Click a pet to see details and buy (only between waves). Locked pets hidden.</div>
-      <div class="shop-grid" id="shopGrid"></div>
-      <div id="detailPanel"></div>
-    </div>
-  `;
-  container.appendChild(modal);
-  container.style.display = 'block';
-  document.getElementById('closeShopBtn').onclick = ()=> { container.style.display='none'; };
-
-  const grid = modal.querySelector('#shopGrid');
-  PET_DEFS.forEach(def=>{
-    if(!GAME.unlocked[def.id]) return; // hide locked pets here
-    const card = document.createElement('div');
-    card.className = `pet-card rarity-${def.rarity}`;
-    card.style.borderColor = RARITY_COLORS[def.rarity] || RARITY_COLORS.common;
-    card.dataset.id = def.id;
-    card.innerHTML = `<div class="pet-emoji">${def.emoji}</div>
-                      <div style="flex:1">
-                        <div class="pet-name">${def.name} <span style="font-size:12px;color:var(--muted)">(${def.rarity})</span></div>
-                        <div class="pet-meta">❤️ ${def.hp} &nbsp; 💥 ${def.dmg} &nbsp; ⚡ ${def.speed.toFixed(1)} &nbsp; 🎯 ${def.range}</div>
-                      </div>
-                      <div style="font-weight:800">${def.cost}¢</div>`;
-    card.onclick = ()=> showDetail(def);
-    grid.appendChild(card);
-  });
-
-  // if nothing unlocked (rare) show hint
-  if(!modal.querySelector('.pet-card')) grid.innerHTML = '<div style="color:var(--muted)">No pets unlocked yet — kill enemies to unlock pets.</div>';
-}
-
-/* Show detailed stat panel where player can buy and preview placement */
-function showDetail(def){
-  const panel = document.querySelector('#detailPanel');
-  const rarityClass = `rarity-${def.rarity}`;
-  panel.innerHTML = `
-    <div class="details ${rarityClass}" style="border-color:${RARITY_COLORS[def.rarity]};">
-      <div style="font-size:34px">${def.emoji}</div>
-      <div style="flex:1">
-        <div style="font-weight:900">${def.name} <span style="font-size:12px;color:var(--muted)">(${def.rarity})</span></div>
-        <div class="detail-stats">
-          ❤️ Health: ${def.hp} &nbsp; 💥 Damage: ${def.dmg} <br>
-          ⚡ Speed: ${def.speed} &nbsp; 🎯 Range: ${def.range} <br>
-          ✨ Ability: ${def.ability || '—'} &nbsp; • ${def.desc || ''}
-        </div>
-        <div class="placement-hint">Buy to place on map. You will then click the map to set location. Click Cancel to abort placement.</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-        <div style="font-weight:800">${def.cost}¢</div>
-        <div>
-          <button id="buyThisBtn">Buy</button>
-          <button id="cancelBuyBtn" class="small">Cancel</button>
-        </div>
-      </div>
-    </div>
-  `;
-  // wire buy
-  document.getElementById('buyThisBtn').onclick = ()=>{
-    if(!GAME.betweenWaves){ flashMsg('Buy only between waves'); return; }
-    if(GAME.coins < def.cost){ flashMsg('Not enough coins'); return; }
-    // deduct and enter placement mode
-    GAME.coins -= def.cost;
-    updateUI();
-    GAME.placement = {def};
-    flashMsg(`Placement: Click on map to place ${def.name}. Press ESC to cancel.`);
-    // show range indicator following mouse
-    showPlacementRange(def.range);
-    // close shop modal
-    document.getElementById('shopModalContainer').style.display = 'none';
-  };
-  document.getElementById('cancelBuyBtn').onclick = ()=> {
-    panel.innerHTML = '';
-  };
-}
-
-/* Show a DOM circle for placement range and track mouse */
-const rangeEl = document.getElementById('rangeCircle');
-function showPlacementRange(range){
-  rangeEl.style.display = 'block';
-  rangeEl.style.width = (range*2) + 'px';
-  rangeEl.style.height = (range*2) + 'px';
-  rangeEl.style.border = '2px dashed rgba(255,255,255,0.16)';
-  rangeEl.style.borderRadius = '50%';
-}
-
-/* Hide placement */
-function hidePlacementRange(){ rangeEl.style.display = 'none'; }
-
-/* Canvas click handling for placement and normal clicks */
-canvas.addEventListener('mousemove', (ev)=>{
-  if(GAME.placement){
-    const rect = canvas.getBoundingClientRect();
-    const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-    rangeEl.style.left = (rect.left + mx - rangeEl.offsetWidth/2) + 'px';
-    rangeEl.style.top = (rect.top + my - rangeEl.offsetHeight/2) + 'px';
-  }
-});
-
-window.addEventListener('keydown', (e)=>{
-  if(e.key === 'Escape' && GAME.placement){
-    GAME.placement = null;
-    hidePlacementRange();
-    flashMsg('Placement cancelled.');
-  }
-});
-
-canvas.addEventListener('click', (ev)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
-  if(GAME.placement){
-    // finalize placement at mx,my
-    const d = GAME.placement.def;
-    const inst = createPetInstance(d, mx, my);
-    GAME.pets.push(inst);
-    GAME.placement = null;
-    hidePlacementRange();
-    flashMsg(`${d.emoji} ${d.name} placed!`);
-    return;
-  }
-  // other click interactions could go here
-});
-
-/* -------------------------
-   Pet & Enemy Instances
-   ------------------------- */
-function createPetInstance(def, x,y){
-  return {
-    id:def.id, emoji:def.emoji, name:def.name, rarity:def.rarity,
-    maxHp:def.hp, hp:def.hp, dmg:def.dmg, speed:def.speed, range:def.range, ability:def.ability,
-    x,y, vx:0, vy:0, target:null, cooldown:0, regenTimer:0, alive:true
-  };
-}
-
-function spawnEnemyById(id){
-  const ed = ENEMY_DEFS.find(e=>e.id===id) || ENEMY_DEFS[0];
-  const pos = {...PATH[0]};
-  const e = {
-    id:ed.id, emoji:ed.emoji, name:ed.name,
-    maxHp:ed.hp, hp:ed.hp, speed:ed.speed, reward:ed.reward,
-    x:pos.x + rand(-12,12), y:pos.y + rand(-8,8), waypointIndex:0, alive:true,
-    invisible:!!ed.invisible, slowed:1, burn:0, bleed:0, stun:0, unlocks:ed.unlocks||[]
-  };
-  GAME.enemies.push(e);
-}
-
-/* -------------------------
-   Waves & spawn
-   ------------------------- */
-function startNextWave(){
-  if(GAME.isSpawning) return;
-  if(GAME.wave >= MAX_WAVES){ flashMsg('All waves finished'); return; }
-  GAME.wave++;
-  GAME.isSpawning = true;
-  GAME.betweenWaves = false;
-  updateUI();
-  const enemiesToSpawn = [...GAME.waveConfig[GAME.wave-1]];
-  let idx=0;
-  const spawnInterval = Math.max(700 - GAME.wave*18, 260);
-  GAME.spawnTimer = setInterval(()=>{
-    if(idx >= enemiesToSpawn.length){ clearInterval(GAME.spawnTimer); GAME.isSpawning=false; setTimeout(()=> { if(GAME.enemies.length===0) endWave(); }, 700); return; }
-    spawnEnemyById(enemiesToSpawn[idx++]);
-  }, spawnInterval);
-}
-
-function skipWave(){
-  if(GAME.isSpawning){
-    clearInterval(GAME.spawnTimer);
-    GAME.isSpawning=false;
-    GAME.enemies=[];
-    endWave();
-  } else {
-    if(GAME.betweenWaves) startNextWave();
-  }
-}
-function endWave(){
-  GAME.betweenWaves = true;
-  flashMsg('Wave cleared — you may buy pets.');
-  updateUI();
-}
-
-/* -------------------------
-   Combat: Pet AI & Abilities
-   ------------------------- */
-
-function petAI(pet, dt){
-  // regen
-  pet.regenTimer += dt;
-  if(pet.regenTimer > 0.9){
-    pet.regenTimer = 0;
-    const base = pet.ability === 'regen' ? 6 : 1.8;
-    pet.hp = Math.min(pet.maxHp, pet.hp + base);
-  }
-
-  // pick nearest visible enemy within wide scan (not yet in range)
-  let nearest=null, best=Infinity;
-  for(const e of GAME.enemies){
-    if(!e.alive) continue;
-    if(e.invisible && !isRevealedByOwl(pet)) continue;
-    const d = Math.hypot(e.x - pet.x, e.y - pet.y);
-    if(d < best){ best = d; nearest = e; }
-  }
-  // If nearest inside pet.range -> chase & attack, else idle
-  if(nearest && Math.hypot(nearest.x-pet.x, nearest.y-pet.y) <= pet.range){
-    pet.target = nearest;
-    // move toward enemy
-    const dx = nearest.x - pet.x, dy = nearest.y - pet.y;
-    const m = Math.hypot(dx,dy) || 1;
-    const speedMult = (pet.ability === 'dash') ? 1.6 : 1.0;
-    pet.vx = (dx/m) * pet.speed * speedMult;
-    pet.vy = (dy/m) * pet.speed * speedMult;
-    pet.x += pet.vx * dt * 60;
-    pet.y += pet.vy * dt * 60;
-    // attack if close (melee)
-    const reach = 18 + (pet.ability==='tard' ? 10 : 0);
-    if(Math.hypot(nearest.x-pet.x, nearest.y-pet.y) < reach && pet.cooldown <= 0){
-      performPetAttack(pet, nearest);
-      pet.cooldown = (pet.ability==='dash')?0.35:0.6;
-    } else pet.cooldown -= dt;
-  } else {
-    pet.target = null;
-    // idle gentle float
-    pet.x += Math.cos((Date.now()/1000) + pet.x*0.01) * 0.1;
-    pet.y += Math.sin((Date.now()/1000) + pet.y*0.01) * 0.1;
-    pet.cooldown -= dt;
-  }
-  // clamp inside canvas
-  pet.x = clamp(pet.x, 40, canvas.width-80);
-  pet.y = clamp(pet.y, 40, canvas.height-40);
-}
-
-/* Reveal check: if any owl pet within range of enemy or global present, we reveal ghosts */
-function isRevealedByOwl(pet){
-  for(const p of GAME.pets){
-    if(p.ability === 'reveal' && Math.hypot(p.x - (pet?pet.x:0), p.y - (pet?pet.y:0)) < p.range + 30) return true;
-  }
-  return false;
-}
-
-/* Perform attack: apply damage + ability effects + visuals */
-function performPetAttack(p, enemy){
-  enemy.hp -= p.dmg;
-  // ability effects
-  switch(p.ability){
-    case 'freeze': enemy.slowed = 0.3; setTimeout(()=> enemy.slowed = 1, 900); spawnFreezeEffect(enemy); break;
-    case 'burn': enemy.burn += 4; spawnBurnParticles(enemy); break;
-    case 'bleed': enemy.bleed += 3; spawnBleedEffect(enemy); break;
-    case 'stun': enemy.stun = Math.max(enemy.stun||0, 0.9); spawnStunEffect(enemy); break;
-    case 'acid': enemy.bleed += 2; spawnAcidSpray(enemy); break;
-    case 'mimic': enemy.hp -= Math.floor(enemy.maxHp*0.02); spawnMimicBurst(enemy); break;
-    case 'bonusCoins': /* handled on kill */ break;
-    case 'regen': p.hp = Math.min(p.maxHp, p.hp + 6); break;
-    case 'tard': break;
-    default: break;
-  }
-  // tiny hit particle
-  GAME.projectiles.push({x:enemy.x, y:enemy.y, life:0.16});
-}
-
-/* -------------------------
-   Enemy AI
-   ------------------------- */
-function enemyAI(e, dt){
-  // DOTs
-  if(e.burn > 0){ e.burn -= dt; e.hp -= 1.2 * dt * 60 * 0.02; } // modest dps
-  if(e.bleed > 0){ e.bleed -= dt; e.hp -= 0.9 * dt * 60 * 0.02; }
-  if(e.stun && e.stun > 0) e.stun -= dt;
-
-  // movement
-  if(e.invisible){
-    // move straight to castle
-    const tx = PATH[PATH.length-1].x, ty = PATH[PATH.length-1].y;
-    const dx = tx - e.x, dy = ty - e.y; const m = Math.hypot(dx,dy)||1;
-    if(!(e.stun && e.stun>0)) { e.x += (dx/m)*e.speed*60*dt*e.slowed; e.y += (dy/m)*e.speed*60*dt*e.slowed; }
-    // check reach castle
-    if(Math.hypot(tx - e.x, ty - e.y) < 18){ e.alive=false; GAME.lives--; updateUI(); if(GAME.lives<=0) gameOver(); }
-  } else {
-    const wp = PATH[e.waypointIndex+1] || PATH[PATH.length-1];
-    const dx = wp.x - e.x, dy = wp.y - e.y; const m = Math.hypot(dx,dy)||1;
-    if(!(e.stun && e.stun>0)) { e.x += (dx/m)*e.speed*40*dt*e.slowed; e.y += (dy/m)*e.speed*40*dt*e.slowed; }
-    if(Math.hypot(wp.x - e.x, wp.y - e.y) < 12){
-      if(e.waypointIndex < PATH.length-2) e.waypointIndex++;
-      else { e.alive=false; GAME.lives--; updateUI(); if(GAME.lives<=0) gameOver(); }
+    for(let key of Object.keys(game.petData)){
+        if(!game.unlockedPets.includes(key)) continue;
+        const pet = game.petData[key];
+        const box = document.createElement('div');
+        box.className='petBox';
+        box.style.borderColor = game.rarityColors[pet.rarity];
+        box.innerHTML = `<b>${pet.name}</b> <br>
+        ❤️ ${pet.health} 💥 ${pet.damage} ⚡ ${pet.speed} 📏 ${pet.range} 🌟 ${pet.ability}`;
+        box.onclick = ()=>{
+            if(game.coins>=10){ // simplified price
+                game.pets.push({type:key,x:100+Math.random()*500,y:100+Math.random()*300,health:pet.health});
+                game.coins-=10;
+                alert(`${pet.name} placed!`);
+            }else alert("Not enough coins!");
+        };
+        shopPopup.appendChild(box);
     }
-  }
 }
+updateShop();
 
-/* -------------------------
-   Kill handling & unlocks
-   ------------------------- */
-function handleEnemyDeath(e){
-  e.alive=false;
-  // reward
-  let drop = e.reward + Math.floor(Math.random()*4);
-  if(GAME.pets.some(p=>p.ability==='bonusCoins')) drop = Math.floor(drop * 1.25);
-  GAME.coins += drop;
-  updateUI();
-  // unlock attempts
-  e.unlocks.forEach(pid=>{
-    const pdef = PET_DEFS.find(p=>p.id===pid);
-    if(!pdef) return;
-    if(GAME.unlocked[pid]) return;
-    const chance = RARITY_UNLOCK[pdef.rarity] || 0.05;
-    if(Math.random() < chance){
-      GAME.unlocked[pid] = true;
-      buildSummary(); updateUI();
-      showUnlockAnimation(pdef);
-    } else {
-      if(Math.random() < 0.08) flashMsg('You almost found something...');
+// ========== GAME LOOP ==========
+function gameLoop(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // draw pets
+    for(let p of game.pets){
+        ctx.fillStyle = game.rarityColors[game.petData[p.type].rarity];
+        ctx.fillRect(p.x,p.y,20,20);
     }
-  });
+    // draw enemies
+    for(let e of game.enemies){
+        ctx.fillStyle = e.type==='ghost'?'white':'orange';
+        ctx.fillRect(e.x,e.y,20,20);
+        e.x += 1; // basic movement
+    }
+    // remove dead enemies
+    game.enemies = game.enemies.filter(e=>e.hp>0);
+    requestAnimationFrame(gameLoop);
 }
+gameLoop();
 
-/* -------------------------
-   Visual effects (ability)
-   ------------------------- */
-function spawnFreezeEffect(enemy){
-  // quick blue ring
-  GAME.projectiles.push({x:enemy.x, y:enemy.y, life:0.9, type:'freeze'});
+// ========== PLACEHOLDER: START WAVE ==========
+function startWave(){
+    game.inWave=true;
+    game.enemies.push({type:'normal',x:0,y:200,hp:10});
 }
-function spawnBurnParticles(enemy){
-  GAME.projectiles.push({x:enemy.x, y:enemy.y, life:1.4, type:'burn'});
-}
-function spawnBleedEffect(enemy){ GAME.projectiles.push({x:enemy.x, y:enemy.y, life:1.0, type:'bleed'}); }
-function spawnStunEffect(enemy){ GAME.projectiles.push({x:enemy.x, y:enemy.y, life:0.6, type:'stun'}); }
-function spawnAcidSpray(enemy){ GAME.projectiles.push({x:enemy.x, y:enemy.y, life:1.2, type:'acid'}); }
-function spawnMimicBurst(enemy){ GAME.projectiles.push({x:enemy.x, y:enemy.y, life:0.9, type:'mimic'}); }
-
-/* -------------------------
-   Unlock animation (sparkles + text)
-   ------------------------- */
-function showUnlockAnimation(pdef){
-  const overlay = document.getElementById('unlockOverlay');
-  overlay.innerHTML = '';
-  overlay.style.display = 'block';
-  overlay.className = 'unlock-overlay';
-  const box = document.createElement('div');
-  box.className = 'unlock-box';
-  box.innerHTML = `<div style="font-size:34px">${pdef.emoji}</div>
-                   <div style="font-weight:900">🔓 You unlocked ${pdef.name} <span style="font-size:13px;color:var(--muted)">(${pdef.rarity})</span></div>`;
-  overlay.appendChild(box);
-  // create sparkles
-  const sparks = [];
-  for(let i=0;i<18;i++){
-    const s = document.createElement('div'); s.className='sparkle'; overlay.appendChild(s);
-    const angle = Math.random()*Math.PI*2;
-    const r = 40 + Math.random()*120;
-    s.style.left = (50 + Math.cos(angle)*10) + '%';
-    s.style.top = (50 + Math.sin(angle)*10) + '%';
-    s.style.background = ['#fff','#ffecb3','#ffd6a5'][Math.floor(Math.random()*3)];
-    s.style.transform = `translate(-50%,-50%) scale(0.8)`;
-    sparks.push(s);
-    // animate via timeout
-    (()=>{
-      const sx = (Math.random()*140 - 70);
-      const sy = (Math.random()*140 - 70);
-      s.animate([
-        {transform:`translate(-50%,-50%) scale(0.8)`, opacity:1},
-        {transform:`translate(${sx}px, ${sy}px) scale(0.2)`, opacity:0}
-      ], {duration:900 + Math.random()*300, easing:'cubic-bezier(.2,.9,.2,1)'});
-    })();
-  }
-  // hide after time
-  setTimeout(()=> { overlay.style.display = 'none'; overlay.innerHTML=''; }, 1600);
-}
-
-/* -------------------------
-   Messages (sidebar)
-   ------------------------- */
-function flashMsg(txt){
-  const el = document.getElementById('message');
-  el.innerText = txt;
-  setTimeout(()=> { if(el.innerText === txt) el.innerText = 'Tip: Buy pets between waves. Click the Shop (bottom-right) to open.'; }, 3800);
-}
-
-/* -------------------------
-   Main loop
-   ------------------------- */
-let last = performance.now();
-function loop(){
-  const nowt = performance.now();
-  const dt = Math.min(0.035, (nowt - last)/1000);
-  last = nowt;
-
-  // update pets
-  for(const p of GAME.pets) petAI(p, dt);
-
-  // update enemies
-  for(const e of GAME.enemies){
-    if(!e.alive) continue;
-    enemyAI(e, dt);
-    if(e.hp <= 0) handleEnemyDeath(e);
-  }
-  GAME.enemies = GAME.enemies.filter(e=>e.alive);
-
-  // projectiles (visual)
-  for(const p of GAME.projectiles) p.life -= dt;
-  GAME.projectiles = GAME.projectiles.filter(p=>p.life>0);
-
-  render();
-  if(GAME.lives <= 0){ gameOver(); return; }
-  window._anim = requestAnimationFrame(loop);
-}
-
-/* Game over */
-function gameOver(){
-  flashMsg('Game Over. Press Restart to play again.');
-  cancelAnimationFrame(window._anim);
-}
-
-/* -------------------------
-   Render
-   ------------------------- */
-function render(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // background
-  ctx.fillStyle = '#071c2a';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // path
-  ctx.lineWidth = 44; ctx.lineCap = 'round'; ctx.strokeStyle = '#123a4a';
-  ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y); for(let i=1;i<PATH.length;i++) ctx.lineTo(PATH[i].x, PATH[i].y); ctx.stroke();
-  ctx.lineWidth = 4; ctx.strokeStyle = '#2aa79a'; ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y); for(let i=1;i<PATH.length;i++) ctx.lineTo(PATH[i].x, PATH[i].y); ctx.stroke();
-
-  // pets
-  for(const p of GAME.pets){
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(p.x, p.y+8, 18, 10,0,0,Math.PI*2); ctx.fill();
-    // emoji
-    ctx.font = '30px serif'; ctx.fillText(p.emoji, p.x-15, p.y+12);
-    // hp bar
-    const w = 48;
-    ctx.fillStyle = '#222'; ctx.fillRect(p.x - w/2, p.y - 28, w, 6);
-    ctx.fillStyle = '#ff6b6b'; ctx.fillRect(p.x - w/2, p.y - 28, w * clamp(p.hp/p.maxHp,0,1), 6);
-    // range circle faint if selected or when placing
-    // show ability icon small
-    ctx.font = '12px sans-serif'; if(p.ability) ctx.fillText('✨', p.x + 20, p.y - 18);
-  }
-
-  // enemies
-  for(const e of GAME.enemies){
-    // shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(e.x, e.y+8, 16, 8,0,0,Math.PI*2); ctx.fill();
-    // ghost invisibility
-    ctx.font = '26px serif';
-    if(e.invisible && !isRevealedByOwl()){
-      ctx.globalAlpha = 0.14;
-      ctx.fillText('👻', e.x-12, e.y+10);
-      ctx.globalAlpha = 1;
-    } else ctx.fillText(e.emoji, e.x-12, e.y+10);
-    // health
-    ctx.fillStyle = '#222'; ctx.fillRect(e.x - 20, e.y - 24, 40, 6);
-    ctx.fillStyle = '#9ef01a'; ctx.fillRect(e.x - 20, e.y - 24, 40 * clamp(e.hp/e.maxHp,0,1), 6);
-    // status visuals
-    if(e.burn > 0){ ctx.fillStyle = 'rgba(255,100,40,0.6)'; ctx.fillRect(e.x-10, e.y+12, 8, 4); }
-    if(e.bleed > 0){ ctx.fillStyle = 'rgba(160,0,20,0.6)'; ctx.fillRect(e.x+2, e.y+12, 8, 4); }
-    if(e.stun > 0){ ctx.fillStyle = 'rgba(255,220,40,0.8)'; ctx.beginPath(); ctx.arc(e.x, e.y-12, 6,0,Math.PI*2); ctx.fill(); }
-  }
-
-  // projectiles (visuals)
-  for(const p of GAME.projectiles){
-    const t = Math.max(0, p.life);
-    if(p.type === 'freeze'){ ctx.strokeStyle = `rgba(120,200,255,${t})`; ctx.beginPath(); ctx.arc(p.x, p.y, 18 * (1-t), 0, Math.PI*2); ctx.stroke(); }
-    else if(p.type === 'burn'){ ctx.fillStyle = `rgba(255,100,30,${t})`; ctx.beginPath(); ctx.arc(p.x + rand(-6,6), p.y + rand(-6,6), 3 + 6*(1-t), 0, Math.PI*2); ctx.fill(); }
-    else if(p.type === 'acid'){ ctx.fillStyle = `rgba(160,255,120,${t})`; ctx.beginPath(); ctx.arc(p.x + rand(-10,10), p.y + rand(-10,10), 2 + 6*(1-t), 0, Math.PI*2); ctx.fill(); }
-    else { ctx.fillStyle = `rgba(255,215,80,${t})`; ctx.beginPath(); ctx.arc(p.x, p.y, 3 + 6*(1-t), 0, Math.PI*2); ctx.fill(); }
-  }
-
-  // castle indicator
-  ctx.fillStyle = '#222'; ctx.fillRect(canvas.width - 60, canvas.height/2 - 60, 48, 120);
-  ctx.fillStyle = '#ffd54f'; ctx.font = '20px sans-serif'; ctx.fillText('🏰', canvas.width - 54, canvas.height/2 + 8);
-}
-
-/* -------------------------
-   Periodic housekeeping
-   ------------------------- */
-setInterval(()=>{
-  for(const e of [...GAME.enemies]){
-    if(e.alive && e.hp <= 0) handleEnemyDeath(e);
-  }
-  GAME.enemies = GAME.enemies.filter(e=>e.alive);
-  // between waves heal small
-  if(GAME.betweenWaves){
-    for(const p of GAME.pets) p.hp = Math.min(p.maxHp, p.hp + 3);
-  }
-  updateUI();
-}, 600);
-
-/* -------------------------
-   Helper: show unlock attempt for debugging
-   ------------------------- */
-function showUnlockAttempt(enemyId){
-  // not used externally now
-}
-
-/* -------------------------
-   Start
-   ------------------------- */
-GAME.waveConfig = generateWaves(MAX_WAVES);
-init();
+canvas.addEventListener('click',startWave);
 
 </script>
 </body>
 </html>
+
